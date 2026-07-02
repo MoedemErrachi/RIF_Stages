@@ -5,7 +5,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Screen } from './types.js';
-import { INITIAL_INTERNSHIPS, INITIAL_APPLICATIONS } from '../backend/data.js';
+
+const EMPTY_LIST = [];
 
 // Component Imports
 import TopAppBar from './components/TopAppBar.jsx';
@@ -89,12 +90,12 @@ export default function App() {
           const cachedInternships = localStorage.getItem('rif_internships');
           const cachedApplications = localStorage.getItem('rif_applications');
           if (cachedInternships) setInternships(JSON.parse(cachedInternships));
-          else setInternships(INITIAL_INTERNSHIPS);
+          else setInternships(EMPTY_LIST);
           if (cachedApplications) setApplications(JSON.parse(cachedApplications));
-          else setApplications(INITIAL_APPLICATIONS);
+          else setApplications(EMPTY_LIST);
         } catch (e) {
-          setInternships(INITIAL_INTERNSHIPS);
-          setApplications(INITIAL_APPLICATIONS);
+          setInternships(EMPTY_LIST);
+          setApplications(EMPTY_LIST);
         }
       }
     };

@@ -6,9 +6,9 @@
 import fs from 'fs';
 import path from 'path';
 import mysql from 'mysql2/promise';
-import { INITIAL_INTERNSHIPS, INITIAL_APPLICATIONS } from './data.js';
 
 const DATA_FILE = path.join(process.cwd(), 'db.json');
+const EMPTY_DB = { internships: [], applications: [] };
 
 let pool = null;
 let useMySQL = false;
@@ -147,8 +147,7 @@ export async function initializeDatabase() {
         `, [adminHash, adminHash, candidatHash, candidatHash, candidatHash]);
       }
 
-      // We won't seed data.js into MySQL as the structures differ greatly, 
-      // let's start fresh or use the JSON fallback for old data.
+      // No demo seed is inserted here; the app now relies on the database.
       
       connection.release();
     } catch (err) {
@@ -163,11 +162,7 @@ export async function initializeDatabase() {
 
 function initJSONFile() {
   if (!fs.existsSync(DATA_FILE)) {
-    const defaultData = {
-      internships: INITIAL_INTERNSHIPS,
-      applications: INITIAL_APPLICATIONS,
-    };
-    fs.writeFileSync(DATA_FILE, JSON.stringify(defaultData, null, 2), 'utf-8');
+    fs.writeFileSync(DATA_FILE, JSON.stringify(EMPTY_DB, null, 2), 'utf-8');
   }
 }
 
@@ -180,7 +175,7 @@ function loadJSONData() {
   } catch (e) {
     console.error('Error reading db.json, returning defaults', e);
   }
-  return { internships: INITIAL_INTERNSHIPS, applications: INITIAL_APPLICATIONS };
+  return { ...EMPTY_DB };
 }
 
 function saveJSONData(data) {
