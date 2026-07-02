@@ -4,13 +4,14 @@
  */
 
 import React from 'react';
-import { Menu, ArrowLeft, LogOut, ShieldAlert } from 'lucide-react';
+import { Menu, ArrowLeft, LogOut } from 'lucide-react';
 import { Screen } from '../types.js';
 
 export default function TopAppBar({
   currentScreen,
   role,
   title,
+  currentUser,
   onBack,
   onToggleSidebar,
   onRoleChange,
@@ -47,16 +48,22 @@ export default function TopAppBar({
       </div>
 
       <div className="flex items-center gap-2">
-        {/* Role Switcher Badge */}
-        <button
-          onClick={() => onRoleChange(role === 'candidat' ? 'rh' : 'candidat')}
-          className="text-[11px] font-semibold px-3 py-1.5 rounded-full border bg-primary-container/20 border-primary/30 text-primary hover:bg-primary-container/30 transition-all cursor-pointer flex items-center gap-1 shadow-inner active:scale-95"
-        >
-          <ShieldAlert className="w-3.5 h-3.5" />
-          <span>{role === 'candidat' ? 'Espace RH' : 'Espace Candidat'}</span>
-        </button>
+        {/* User info + role badge */}
+        <div className="hidden sm:flex flex-col items-end leading-tight">
+          {currentUser && (
+            <span className="text-xs font-bold text-on-surface">
+              {currentUser.prenom} {currentUser.nom}
+            </span>
+          )}
+          <span className="text-[10px] font-semibold text-primary">
+            {role === 'candidat' ? 'Espace Candidat' : 'Espace RH'}
+          </span>
+        </div>
+        <span className="sm:hidden text-[11px] font-semibold px-3 py-1.5 rounded-full border bg-primary-container/20 border-primary/30 text-primary">
+          {role === 'candidat' ? 'Candidat' : 'RH'}
+        </span>
 
-        {/* Logout (if not on logins) */}
+        {/* Logout */}
         {currentScreen !== Screen.CANDIDATE_LOGIN && currentScreen !== Screen.RH_LOGIN && (
           <button
             onClick={onLogout}

@@ -72,12 +72,18 @@ export async function initializeDatabase() {
             titre VARCHAR(150) NOT NULL,
             description TEXT NOT NULL,
             specialite VARCHAR(100) NOT NULL,
+            duree VARCHAR(50) NULL,
+            localisation VARCHAR(150) NULL,
             statut ENUM('ouverte', 'fermee') DEFAULT 'ouverte',
             created_by INT NOT NULL,
             date_creation DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (created_by) REFERENCES Users(id) ON DELETE CASCADE
         );
       `);
+
+      // Add columns if they don't exist yet (migration for existing tables)
+      await connection.query(`ALTER TABLE Offre ADD COLUMN IF NOT EXISTS duree VARCHAR(50) NULL`).catch(() => {});
+      await connection.query(`ALTER TABLE Offre ADD COLUMN IF NOT EXISTS localisation VARCHAR(150) NULL`).catch(() => {});
 
       await connection.query(`
         CREATE TABLE IF NOT EXISTS Candidature (
@@ -124,14 +130,21 @@ export async function initializeDatabase() {
       `);
 
       // Seed default users if empty
-      const [userRows] = await connection.query('SELECT COUNT(*) as count FROM Users');
+      const [userRows] = await pool.query('SELECT COUNT(*) as count FROM Users');
       if (userRows[0].count === 0) {
         console.log('Seeding initial users...');
-        await connection.query(\`
+        // Use bcrypt to hash passwords for seeded users
+        const bcrypt = await import('bcrypt');
+        const adminHash = await bcrypt.hash('admin123', 10);
+        const candidatHash = await bcrypt.hash('candidat123', 10);
+        await pool.query(`
           INSERT INTO Users (nom, prenom, email, password_hash, role) VALUES 
-          ('Admin', 'Super', 'rh@example.com', 'hash', 'rh'),
-          ('Demo', 'Candidat', 'candidat.demo@example.com', 'hash', 'candidat')
-        \`);
+          ('Admin', 'Super', 'rh@example.com', ?, 'rh'),
+          ('Martin', 'Sophie', 'rh2@example.com', ?, 'rh'),
+          ('Demo', 'Candidat', 'candidat.demo@example.com', ?, 'candidat'),
+          ('Dupont', 'Jean', 'jean.dupont@example.com', ?, 'candidat'),
+          ('Leroy', 'Marie', 'marie.leroy@example.com', ?, 'candidat')
+        `, [adminHash, adminHash, candidatHash, candidatHash, candidatHash]);
       }
 
       // We won't seed data.js into MySQL as the structures differ greatly, 
@@ -179,10 +192,10 @@ function mapOffreToInternship(row) {
   return {
     id: row.id.toString(),
     title: row.titre,
-    company: 'Entreprise RIF', // Default
+    company: 'Entreprise RIF',
     specialty: row.specialite,
-    duration: 'Non spécifié',
-    location: 'Non spécifié',
+    duration: row.duree || 'Non spécifié',
+    location: row.localisation || 'Non spécifié',
     description: row.description,
     status: row.statut === 'ouverte' ? 'Ouverte' : 'Fermée',
     applicantsCount: row.applicantsCount || 0,
@@ -235,12 +248,12 @@ function mapStatusToStatut(status) {
 export async function getInternships() {
   if (useMySQL && pool) {
     try {
-      const [rows] = await pool.query(\`
+      const [rows] = await pool.query(`
         SELECT o.*, COUNT(c.id) as applicantsCount 
         FROM Offre o 
         LEFT JOIN Candidature c ON o.id = c.offre_id 
         GROUP BY o.id
-      \`);
+      `);
       return rows.map(mapOffreToInternship);
     } catch (err) {
       console.error('MySQL query error in getInternships:', err);
@@ -252,13 +265,17 @@ export async function getInternships() {
 export async function addInternship(offer) {
   if (useMySQL && pool) {
     try {
-      // Create offer with user RH (id 1)
       const statut = offer.status === 'Fermée' ? 'fermee' : 'ouverte';
+      const duree = offer.duration || null;
+      const localisation = offer.location || null;
       const [result] = await pool.query(
-        'INSERT INTO Offre (titre, description, specialite, statut, created_by) VALUES (?, ?, ?, ?, 1)',
-        [offer.title, offer.description || '', offer.specialty || '', statut]
+        'INSERT INTO Offre (titre, description, specialite, duree, localisation, statut, created_by) VALUES (?, ?, ?, ?, ?, ?, 1)',
+        [offer.title, offer.description || '', offer.specialty || '', duree, localisation, statut]
       );
-      const [rows] = await pool.query('SELECT * FROM Offre WHERE id = ?', [result.insertId]);
+      const [rows] = await pool.query(
+        'SELECT o.*, COUNT(c.id) as applicantsCount FROM Offre o LEFT JOIN Candidature c ON o.id = c.offre_id WHERE o.id = ? GROUP BY o.id',
+        [result.insertId]
+      );
       return mapOffreToInternship(rows[0]);
     } catch (err) {
       console.error('MySQL query error in addInternship:', err);
@@ -266,8 +283,8 @@ export async function addInternship(offer) {
   }
   
   const db = loadJSONData();
-  const id = \`internship-\${Date.now()}\`;
-  const newOffer = { ...offer, id, applicantsCount: 0, publishedAt: "À l'instant" };
+  const id = `internship-${Date.now()}`;
+  const newOffer = { ...offer, id, applicantsCount: 0, publishedAt: new Date().toISOString() };
   db.internships = [newOffer, ...db.internships];
   saveJSONData(db);
   return newOffer;
@@ -308,14 +325,14 @@ export async function deleteInternship(id) {
 export async function getApplications() {
   if (useMySQL && pool) {
     try {
-      const [rows] = await pool.query(\`
+      const [rows] = await pool.query(`
         SELECT c.*, 
                o.titre as offre_titre, 
                u.nom as candidat_nom, u.prenom as candidat_prenom, u.email as candidat_email, u.telephone as candidat_telephone
         FROM Candidature c
         JOIN Offre o ON c.offre_id = o.id
         JOIN Users u ON c.candidat_id = u.id
-      \`);
+      `);
       return rows.map(mapCandidatureToApplication);
     } catch (err) {
       console.error('MySQL query error in getApplications:', err);
@@ -331,9 +348,13 @@ export async function addApplication(appData) {
       let [users] = await pool.query('SELECT id FROM Users WHERE email = ?', [appData.candidateEmail]);
       let candidat_id;
       if (users.length === 0) {
+        // Auto-create a candidate user with a random secure password
+        const bcryptLib = await import('bcrypt');
+        const tempPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-10);
+        const tempHash = await bcryptLib.hash(tempPassword, 10);
         const [insertUser] = await pool.query(
           'INSERT INTO Users (nom, prenom, email, password_hash, telephone, role) VALUES (?, ?, ?, ?, ?, ?)',
-          [appData.candidateLastName, appData.candidateFirstName, appData.candidateEmail, 'hash', appData.candidatePhone || null, 'candidat']
+          [appData.candidateLastName || 'Candidat', appData.candidateFirstName || '', appData.candidateEmail, tempHash, appData.candidatePhone || null, 'candidat']
         );
         candidat_id = insertUser.insertId;
       } else {
@@ -359,11 +380,11 @@ export async function addApplication(appData) {
       );
 
       // Return created app mapped
-      const [rows] = await pool.query(\`
+      const [rows] = await pool.query(`
         SELECT c.*, o.titre as offre_titre, u.nom as candidat_nom, u.prenom as candidat_prenom, u.email as candidat_email, u.telephone as candidat_telephone
         FROM Candidature c JOIN Offre o ON c.offre_id = o.id JOIN Users u ON c.candidat_id = u.id
         WHERE c.id = ?
-      \`, [insertApp.insertId]);
+      `, [insertApp.insertId]);
       return mapCandidatureToApplication(rows[0]);
     } catch (err) {
       console.error('MySQL query error in addApplication:', err);
@@ -402,11 +423,11 @@ export async function updateApplicationStatus(id, status, comment) {
         [id, 'changement_statut', user[0].email]
       );
 
-      const [rows] = await pool.query(\`
+      const [rows] = await pool.query(`
         SELECT c.*, o.titre as offre_titre, u.nom as candidat_nom, u.prenom as candidat_prenom, u.email as candidat_email, u.telephone as candidat_telephone
         FROM Candidature c JOIN Offre o ON c.offre_id = o.id JOIN Users u ON c.candidat_id = u.id
         WHERE c.id = ?
-      \`, [id]);
+      `, [id]);
       return mapCandidatureToApplication(rows[0]);
     } catch (err) {
       console.error('MySQL query error in updateApplicationStatus:', err);
@@ -420,15 +441,60 @@ export async function updateApplicationComment(id, comment) {
     try {
       await pool.query('UPDATE Candidature SET commentaire_rh = ? WHERE id = ?', [comment, id]);
       
-      const [rows] = await pool.query(\`
+      const [rows] = await pool.query(`
         SELECT c.*, o.titre as offre_titre, u.nom as candidat_nom, u.prenom as candidat_prenom, u.email as candidat_email, u.telephone as candidat_telephone
         FROM Candidature c JOIN Offre o ON c.offre_id = o.id JOIN Users u ON c.candidat_id = u.id
         WHERE c.id = ?
-      \`, [id]);
+      `, [id]);
       return mapCandidatureToApplication(rows[0]);
     } catch (err) {
       console.error('MySQL query error in updateApplicationComment:', err);
     }
   }
   return null;
+}
+
+// --- AUTH API ---
+
+export async function getUserByEmail(email) {
+  if (useMySQL && pool) {
+    try {
+      const [rows] = await pool.query('SELECT * FROM Users WHERE email = ?', [email]);
+      return rows[0] || null;
+    } catch (err) {
+      console.error('MySQL query error in getUserByEmail:', err);
+    }
+  }
+  return null;
+}
+
+export async function createUser(nom, prenom, email, passwordHash, telephone, role) {
+  if (useMySQL && pool) {
+    try {
+      const [result] = await pool.query(
+        'INSERT INTO Users (nom, prenom, email, password_hash, telephone, role) VALUES (?, ?, ?, ?, ?, ?)',
+        [nom, prenom, email, passwordHash, telephone || null, role]
+      );
+      const [rows] = await pool.query('SELECT * FROM Users WHERE id = ?', [result.insertId]);
+      return rows[0];
+    } catch (err) {
+      console.error('MySQL query error in createUser:', err);
+    }
+  }
+  return null;
+}
+
+export async function updateUserPasswordByEmail(email, passwordHash) {
+  if (useMySQL && pool) {
+    try {
+      const [result] = await pool.query(
+        'UPDATE Users SET password_hash = ? WHERE email = ?',
+        [passwordHash, email]
+      );
+      return result.affectedRows > 0;
+    } catch (err) {
+      console.error('MySQL query error in updateUserPasswordByEmail:', err);
+    }
+  }
+  return false;
 }

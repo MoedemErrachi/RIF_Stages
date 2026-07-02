@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { FileText, ArrowLeft, X, Check, AlertCircle, Sparkles, Copy, RotateCw } from 'lucide-react';
+import { FileText, ArrowLeft, X, Check, AlertCircle, Sparkles, Copy, RotateCw, Clock } from 'lucide-react';
 
 export default function RHApplicationDetail({
   application,
@@ -24,8 +24,9 @@ export default function RHApplicationDetail({
   const [copySuccess, setCopySuccess] = useState(false);
 
   const handleDownloadCV = () => {
-    setDownloadSuccess(true);
-    setTimeout(() => setDownloadSuccess(false), 3000);
+    if (application.cvName) {
+      window.open(application.cvName, '_blank');
+    }
   };
 
   const handleSaveComment = () => {
@@ -270,19 +271,29 @@ export default function RHApplicationDetail({
 
       {/* Decision Actions (Fixed Bottom) */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-[#0D0B1A]/95 backdrop-blur-md border-t border-[#2E2A4D] flex gap-4 z-30 justify-center">
-        <div className="w-full max-w-lg flex gap-4">
+        <div className="w-full max-w-lg flex gap-2 sm:gap-4 flex-wrap">
           <button
             type="button"
             onClick={() => onUpdateStatus(application.id, 'Refusée', commentText)}
-            className="flex-1 h-12 rounded-lg font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-transform active:scale-95 cursor-pointer bg-accent-red text-[#121028] hover:brightness-110 shadow-lg"
+            className="flex-1 min-w-[100px] h-12 rounded-lg font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-transform active:scale-95 cursor-pointer bg-accent-red text-[#121028] hover:brightness-110 shadow-lg"
           >
             <X className="w-4 h-4" strokeWidth={2.5} />
             <span>Refuser</span>
           </button>
+          {application.status !== 'En revue' && application.status !== 'Acceptée' && application.status !== 'Refusée' && (
+            <button
+              type="button"
+              onClick={() => onUpdateStatus(application.id, 'En revue', commentText)}
+              className="flex-1 min-w-[100px] h-12 rounded-lg font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-transform active:scale-95 cursor-pointer bg-orange-500 text-[#121028] hover:brightness-110 shadow-lg"
+            >
+              <Clock className="w-4 h-4" strokeWidth={2.5} />
+              <span>En revue</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onUpdateStatus(application.id, 'Acceptée', commentText)}
-            className="flex-1 h-12 rounded-lg font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-transform active:scale-95 cursor-pointer bg-accent-green text-[#121028] hover:brightness-110 shadow-lg"
+            className="flex-1 min-w-[100px] h-12 rounded-lg font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-transform active:scale-95 cursor-pointer bg-accent-green text-[#121028] hover:brightness-110 shadow-lg"
           >
             <Check className="w-4 h-4" strokeWidth={2.5} />
             <span>Accepter</span>

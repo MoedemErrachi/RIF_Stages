@@ -16,7 +16,6 @@ export default function CandidateApply({
   const [phone, setPhone] = useState('');
   const [motivation, setMotivation] = useState('');
   const [cvFile, setCvFile] = useState(null);
-  const [cvSimulatedName, setCvSimulatedName] = useState('');
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState('');
 
@@ -42,7 +41,6 @@ export default function CandidateApply({
       const file = e.dataTransfer.files[0];
       if (file.type === 'application/pdf') {
         setCvFile(file);
-        setCvSimulatedName(file.name);
         setError('');
       } else {
         setError('Veuillez sélectionner un fichier au format PDF uniquement.');
@@ -55,7 +53,6 @@ export default function CandidateApply({
       const file = e.target.files[0];
       if (file.type === 'application/pdf') {
         setCvFile(file);
-        setCvSimulatedName(file.name);
         setError('');
       } else {
         setError('Veuillez sélectionner un fichier au format PDF uniquement.');
@@ -63,31 +60,43 @@ export default function CandidateApply({
     }
   };
 
-  const simulateCVUpload = () => {
-    const randomCVNames = ['Curriculum_Vitae_Ingenieur.pdf', 'CV_Developpeur_Web_2026.pdf', 'Ahmed_CV_Fullstack.pdf'];
-    const randomCVName = randomCVNames[Math.floor(Math.random() * randomCVNames.length)];
-    setCvSimulatedName(randomCVName);
-    setError('');
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!lastName.trim() || !firstName.trim() || !phone.trim() || !motivation.trim()) {
       setError('Veuillez remplir tous les champs obligatoires.');
       return;
     }
-    if (!cvSimulatedName) {
-      setError('Veuillez uploader ou choisir votre Curriculum Vitae (CV).');
+    if (!cvFile) {
+      setError('Veuillez choisir un fichier CV (PDF).');
       return;
     }
+    // Build FormData for multipart upload
+    const formData = new FormData();
+    formData.append('internshipId', internship?.id || '');
+    formData.append('internshipTitle', internship?.title || '');
+    formData.append('candidateLastName', lastName);
+    formData.append('candidateFirstName', firstName);
+    formData.append('candidatePhone', `+216 ${phone}`);
+    formData.append('motivation', motivation);
+    // candidateEmail is picked up server-side from the JWT token or defaults
+    formData.append('cvFile', cvFile);
 
-    onSubmitSuccess({
-      lastName,
-      firstName,
-      phone: `+216 ${phone}`,
-      cvName: cvSimulatedName,
-      motivation,
-    });
+
+    try {
+      const response = await fetch('/api/applications', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        setError(err.error || 'Erreur lors de la soumission.');
+        return;
+      }
+      const result = await response.json();
+      onSubmitSuccess(result);
+    } catch (e) {
+      setError('Erreur de réseau lors de la soumission.');
+    }
   };
 
   return (
@@ -157,9 +166,14 @@ export default function CandidateApply({
                 id="telephone"
                 type="tel"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, '');
+                  setPhone(val);
+                }}
                 className="flex-1 bg-transparent px-4 text-sm text-on-surface placeholder:text-on-surface-variant/50 outline-none"
                 placeholder="XX XXX XXX"
+                pattern="[0-9]*"
+                maxLength="8"
                 required
               />
             </div>
@@ -170,7 +184,7 @@ export default function CandidateApply({
               Curriculum Vitae (CV)
             </label>
 
-            {cvSimulatedName ? (
+            {cvFile ? (
               <div className="flex items-center justify-between p-4 bg-surface-container border border-accent-green/30 rounded-xl">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-accent-green/10 flex items-center justify-center">
@@ -178,17 +192,14 @@ export default function CandidateApply({
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-on-surface max-w-xs truncate">
-                      {cvSimulatedName}
+                      {cvFile.name}
                     </p>
                     <p className="text-[11px] text-accent-green font-semibold">Fichier chargé avec succès</p>
                   </div>
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    setCvFile(null);
-                    setCvSimulatedName('');
-                  }}
+                  onClick={() => setCvFile(null)}
                   className="p-2 text-on-surface-variant hover:text-accent-red hover:bg-white/5 rounded-lg transition-colors cursor-pointer"
                   title="Supprimer le fichier"
                 >
@@ -201,7 +212,6 @@ export default function CandidateApply({
                 onDragOver={handleDrag}
                 onDragLeave={handleDrag}
                 onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
                 className={`group relative w-full rounded-xl border-2 border-dashed hover:border-[#4c3bcf] bg-surface-container-low hover:bg-surface-container transition-colors cursor-pointer flex flex-col items-center justify-center py-8 px-6 text-center ${
                   dragActive ? 'border-[#4c3bcf] bg-surface-container' : 'border-[#474554]'
                 }`}

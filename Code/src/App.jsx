@@ -31,35 +31,40 @@ export default function App() {
   // 1. Core Platform State
   const [internships, setInternships] = useState([]);
   const [applications, setApplications] = useState([]);
-  const [currentScreen, setCurrentScreen] = useState(Screen.CANDIDATE_EXPLORE);
+  const [currentScreen, setCurrentScreen] = useState(Screen.CANDIDATE_LOGIN);
   const [role, setRole] = useState('candidat');
   const [activeInternship, setActiveInternship] = useState(null);
   const [activeApplication, setActiveApplication] = useState(null);
-  const [userEmail, setUserEmail] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null); // { id, nom, prenom, email, role }
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Status Alerts state
   const [toastMessage, setToastMessage] = useState(null);
 
-  // Load state on mount and fetch from backend
   useEffect(() => {
-    // 1. Instantly restore configuration variables
-    const cachedRole = localStorage.getItem('rif_user_role');
-    const cachedEmail = localStorage.getItem('rif_user_email');
+    // 1. Check for stored JWT token
+    const storedToken = localStorage.getItem('rif_token');
+    const storedUser = localStorage.getItem('rif_user');
     const cachedScreen = localStorage.getItem('rif_current_screen');
 
-    if (cachedRole) {
-      setRole(cachedRole);
-    }
-    if (cachedEmail) {
-      setUserEmail(cachedEmail);
-    }
-    if (cachedScreen) {
-      if (Object.values(Screen).includes(cachedScreen)) {
-        setCurrentScreen(cachedScreen);
-      } else {
-        setCurrentScreen(Screen.CANDIDATE_EXPLORE);
+    if (storedToken && storedUser) {
+      try {
+        const user = JSON.parse(storedUser);
+        setCurrentUser(user);
+        setRole(user.role);
+        // Restore screen or set default based on role
+        if (cachedScreen && Object.values(Screen).includes(cachedScreen)) {
+          setCurrentScreen(cachedScreen);
+        } else {
+          setCurrentScreen(user.role === 'rh' ? Screen.RH_DASHBOARD : Screen.CANDIDATE_EXPLORE);
+        }
+      } catch (e) {
+        localStorage.removeItem('rif_token');
+        localStorage.removeItem('rif_user');
       }
+    } else {
+      // Not logged in: go to candidate login
+      setCurrentScreen(Screen.CANDIDATE_LOGIN);
     }
 
     // 2. Fetch fresh synchronized database lists
@@ -79,8 +84,7 @@ export default function App() {
           setApplications(fetchedApplications);
         }
       } catch (err) {
-        console.warn('Backend server not fully initialized or offline, falling back to localStorage.', err);
-        // Fallback
+        console.warn('Backend not reachable, using local data.', err);
         try {
           const cachedInternships = localStorage.getItem('rif_internships');
           const cachedApplications = localStorage.getItem('rif_applications');
@@ -109,9 +113,9 @@ export default function App() {
     localStorage.setItem('rif_applications', JSON.stringify(updated));
   };
 
-  const showToast = (message) => {
+  const showToast = (message, duration = 4000) => {
     setToastMessage(message);
-    setTimeout(() => setToastMessage(null), 4000);
+    setTimeout(() => setToastMessage(null), duration);
   };
 
   // Switch role dynamically
@@ -135,15 +139,12 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    setUserEmail(null);
-    localStorage.removeItem('rif_user_email');
-    if (role === 'rh') {
-      setCurrentScreen(Screen.RH_LOGIN);
-      localStorage.setItem('rif_current_screen', Screen.RH_LOGIN);
-    } else {
-      setCurrentScreen(Screen.CANDIDATE_LOGIN);
-      localStorage.setItem('rif_current_screen', Screen.CANDIDATE_LOGIN);
-    }
+    setCurrentUser(null);
+    localStorage.removeItem('rif_token');
+    localStorage.removeItem('rif_user');
+    localStorage.removeItem('rif_current_screen');
+    setRole('candidat');
+    setCurrentScreen(Screen.CANDIDATE_LOGIN);
     showToast('Déconnexion réussie');
   };
 
@@ -159,45 +160,20 @@ export default function App() {
     localStorage.setItem('rif_current_screen', Screen.CANDIDATE_APPLY);
   };
 
-  const handleApplySubmit = async (applicationData) => {
-    if (!activeInternship) return;
-
-    try {
-      const response = await fetch('/api/applications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          internshipId: activeInternship.id,
-          internshipTitle: activeInternship.title,
-          candidateLastName: applicationData.lastName,
-          candidateFirstName: applicationData.firstName,
-          candidateEmail: userEmail || 'candidat.demo@example.com',
-          candidatePhone: applicationData.phone,
-          cvName: applicationData.cvName,
-          motivation: applicationData.motivation,
-        }),
-      });
-
-      if (!response.ok) throw new Error('Failed to submit application');
-      const newApp = await response.json();
-
-      const updatedApps = [newApp, ...applications];
-      saveApplications(updatedApps);
-
-      // Increment offer count
-      const updatedOffers = internships.map((item) =>
-        item.id === activeInternship.id
-          ? { ...item, applicantsCount: item.applicantsCount + 1 }
-          : item
-      );
-      saveInternships(updatedOffers);
-
-      setCurrentScreen(Screen.CANDIDATE_SUCCESS);
-      localStorage.setItem('rif_current_screen', Screen.CANDIDATE_SUCCESS);
-    } catch (err) {
-      console.error(err);
-      showToast('Erreur lors de la soumission de la candidature.');
-    }
+  const handleApplySubmit = async (newApp) => {
+    // CandidateApply now handles the fetch itself and passes back the result
+    if (!newApp) return;
+    const updatedApps = [newApp, ...applications];
+    saveApplications(updatedApps);
+    // Increment offer count in UI
+    const updatedOffers = internships.map((item) =>
+      item.id === activeInternship?.id
+        ? { ...item, applicantsCount: (item.applicantsCount || 0) + 1 }
+        : item
+    );
+    saveInternships(updatedOffers);
+    setCurrentScreen(Screen.CANDIDATE_SUCCESS);
+    localStorage.setItem('rif_current_screen', Screen.CANDIDATE_SUCCESS);
   };
 
   // 3. Recruiter (RH) Core Handlers
@@ -225,7 +201,20 @@ export default function App() {
         setActiveApplication(updatedApp);
       }
 
-      showToast(`Candidature mise à jour avec statut: ${newStatus}`);
+      if (updatedApp.previewUrl) {
+        showToast(
+          <span className="flex items-center gap-2">
+            Email automatique généré et envoyé ! 
+            <a href={updatedApp.previewUrl} target="_blank" rel="noreferrer" className="underline text-[#3DD68C] hover:text-white pointer-events-auto">
+              [Voir l'email]
+            </a>
+          </span>,
+          10000 // 10 seconds duration
+        );
+      } else {
+        showToast(`Candidature mise à jour avec statut: ${newStatus}`);
+      }
+      
       setCurrentScreen(Screen.RH_APPLICATIONS);
       localStorage.setItem('rif_current_screen', Screen.RH_APPLICATIONS);
     } catch (err) {
@@ -360,6 +349,7 @@ export default function App() {
             currentScreen={currentScreen}
             role={role}
             title={getHeaderTitle()}
+            currentUser={currentUser}
             onBack={() => {
               if (currentScreen === Screen.CANDIDATE_OFFER_DETAIL) {
                 setCurrentScreen(Screen.CANDIDATE_EXPLORE);
@@ -395,13 +385,28 @@ export default function App() {
               case Screen.CANDIDATE_LOGIN:
                 return (
                   <CandidateLogin
-                    onLoginSuccess={(email) => {
-                      setUserEmail(email);
-                      localStorage.setItem('rif_user_email', email);
-                      setRole('candidat');
-                      setCurrentScreen(Screen.CANDIDATE_EXPLORE);
-                      localStorage.setItem('rif_current_screen', Screen.CANDIDATE_EXPLORE);
-                      showToast(`Connecté en tant que ${email}`);
+                    onLoginSuccess={async (email, password) => {
+                      try {
+                        const res = await fetch('/api/auth/login', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ email, password }),
+                        });
+                        if (!res.ok) {
+                          const err = await res.json();
+                          throw new Error(err.error || 'Identifiants invalides.');
+                        }
+                        const { token, user } = await res.json();
+                        localStorage.setItem('rif_token', token);
+                        localStorage.setItem('rif_user', JSON.stringify(user));
+                        setCurrentUser(user);
+                        setRole('candidat');
+                        setCurrentScreen(Screen.CANDIDATE_EXPLORE);
+                        localStorage.setItem('rif_current_screen', Screen.CANDIDATE_EXPLORE);
+                        showToast(`Bienvenue ${user.prenom} ${user.nom} — Espace Candidat`);
+                      } catch (err) {
+                        throw err; // Let CandidateLogin handle displaying the error
+                      }
                     }}
                     onSwitchToRH={() => {
                       setRole('rh');
@@ -452,19 +457,38 @@ export default function App() {
                 );
 
               case Screen.CANDIDATE_APPLICATIONS:
-                return <CandidateApplications applications={applications} />;
+                const myApplications = applications.filter(app => app.candidateEmail === currentUser?.email);
+                return <CandidateApplications applications={myApplications} />;
 
               // --- Recruiter (RH) Portal Screens ---
               case Screen.RH_LOGIN:
                 return (
                   <RHLogin
-                    onLoginSuccess={(email) => {
-                      setUserEmail(email);
-                      localStorage.setItem('rif_user_email', email);
-                      setRole('rh');
-                      setCurrentScreen(Screen.RH_DASHBOARD);
-                      localStorage.setItem('rif_current_screen', Screen.RH_DASHBOARD);
-                      showToast(`Bienvenue sur l'Espace Recrutement, ${email}`);
+                    onLoginSuccess={async (email, password) => {
+                      try {
+                        const res = await fetch('/api/auth/login', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ email, password }),
+                        });
+                        if (!res.ok) {
+                          const err = await res.json();
+                          throw new Error(err.error || 'Identifiants invalides.');
+                        }
+                        const { token, user } = await res.json();
+                        if (user.role !== 'rh' && user.role !== 'admin') {
+                          throw new Error('Accès refusé. Compte RH requis.');
+                        }
+                        localStorage.setItem('rif_token', token);
+                        localStorage.setItem('rif_user', JSON.stringify(user));
+                        setCurrentUser(user);
+                        setRole('rh');
+                        setCurrentScreen(Screen.RH_DASHBOARD);
+                        localStorage.setItem('rif_current_screen', Screen.RH_DASHBOARD);
+                        showToast(`Bienvenue ${user.prenom} ${user.nom} — Espace RH`);
+                      } catch (err) {
+                        throw err; // Let RHLogin handle displaying the error
+                      }
                     }}
                     onSwitchToCandidate={() => {
                       setRole('candidat');

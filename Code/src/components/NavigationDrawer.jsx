@@ -92,17 +92,6 @@ export default function NavigationDrawer({
           );
         })}
 
-        {/* Dynamic role changer in the nav list */}
-        <button
-          onClick={() => {
-            onRoleChange(isCandidate ? 'rh' : 'candidat');
-            onCloseMobile();
-          }}
-          className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold text-[#3DD68C] hover:bg-[#3DD68C]/10 transition-all duration-200 cursor-pointer mt-4"
-        >
-          <Shield className="w-4 h-4 shrink-0" />
-          <span>Basculer vers {isCandidate ? 'Espace RH' : 'Espace Candidat'}</span>
-        </button>
       </nav>
 
       <div className="mt-auto border-t border-[#2E2A4D] pt-4">

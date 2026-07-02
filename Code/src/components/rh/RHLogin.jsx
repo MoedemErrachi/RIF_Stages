@@ -7,12 +7,13 @@ import React, { useState } from 'react';
 import { Mail, Key, Eye, EyeOff, Lock, User } from 'lucide-react';
 
 export default function RHLogin({ onLoginSuccess, onSwitchToCandidate }) {
-  const [email, setEmail] = useState('prenom.nom@entreprise.com');
-  const [password, setPassword] = useState('recruteur123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email) {
       setError('Veuillez saisir votre email professionnel.');
@@ -22,7 +23,15 @@ export default function RHLogin({ onLoginSuccess, onSwitchToCandidate }) {
       setError('Veuillez saisir votre mot de passe.');
       return;
     }
-    onLoginSuccess(email);
+    setError('');
+    setIsLoading(true);
+    try {
+      await onLoginSuccess(email, password);
+    } catch (err) {
+      setError(err.message || 'Identifiants incorrects ou accès refusé.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -107,9 +116,10 @@ export default function RHLogin({ onLoginSuccess, onSwitchToCandidate }) {
             {/* Action Button */}
             <button
               type="submit"
-              className="h-12 bg-[#4c3bcf] text-white rounded-lg flex items-center justify-center w-full font-bold text-sm hover:bg-[#5546d8] active:scale-[0.98] transition-all cursor-pointer shadow-lg shadow-[#4c3bcf]/10"
+              disabled={isLoading}
+              className="h-12 bg-[#4c3bcf] text-white rounded-lg flex items-center justify-center w-full font-bold text-sm hover:bg-[#5546d8] active:scale-[0.98] transition-all cursor-pointer shadow-lg shadow-[#4c3bcf]/10 disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              Connexion RH
+              {isLoading ? 'Connexion...' : 'Connexion RH'}
             </button>
           </form>
         </div>
@@ -122,10 +132,15 @@ export default function RHLogin({ onLoginSuccess, onSwitchToCandidate }) {
               Accès sécurisé
             </span>
           </div>
-
+          <p className="text-xs text-on-surface-variant/60 text-center">
+            <span className="block mb-2 font-semibold">Comptes de démo RH :</span>
+            <span className="font-mono text-primary">rh@example.com</span><br/>
+            <span className="font-mono text-primary">rh2@example.com</span><br/>
+            <span className="block mt-2">Mot de passe : <span className="font-mono text-primary">admin123</span></span>
+          </p>
           <button
             onClick={onSwitchToCandidate}
-            className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-full border border-dashed border-[#2E2A4D] hover:border-primary text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-all cursor-pointer hover:bg-white/5 active:scale-95"
+            className="mt-2 flex items-center justify-center gap-1.5 px-4 py-2 rounded-full border border-dashed border-[#2E2A4D] hover:border-primary text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-all cursor-pointer hover:bg-white/5 active:scale-95"
           >
             <User className="w-3.5 h-3.5 text-primary" />
             <span>Se connecter en tant que Candidat</span>

@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { Lock, Unlock, Users, Plus, X, ListFilter, Trash2 } from 'lucide-react';
+import { timeAgo } from '../../utils/timeAgo.js';
 
 export default function RHOffersList({
   internships,
@@ -15,13 +16,12 @@ export default function RHOffersList({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [specialty, setSpecialty] = useState('Développement Web');
-  const [duration, setDuration] = useState('3 mois');
-  const [location, setLocation] = useState('Paris / Hybride');
+  const [durationMin, setDurationMin] = useState('');
+  const [durationMax, setDurationMax] = useState('');
+  const [location, setLocation] = useState('Tunis / Hybride');
   const [description, setDescription] = useState('');
-  const [skillsStr, setSkillsStr] = useState('React, Node.js');
-  const [reqsStr, setReqsStr] = useState(
-    "Étudiant(e) en master informatique (Bac+4/5)\nPremière expérience concrète avec React"
-  );
+  const [skillsStr, setSkillsStr] = useState('');
+  const [reqsStr, setReqsStr] = useState('');
   const [error, setError] = useState('');
 
   const handleCreate = (e) => {
@@ -44,7 +44,7 @@ export default function RHOffersList({
       title,
       company: 'TechCorp Solutions',
       specialty,
-      duration,
+      duration: `${durationMin && durationMax ? `${durationMin}-${durationMax} mois` : ''}`,
       location,
       description,
       status: 'Ouverte',
@@ -55,6 +55,8 @@ export default function RHOffersList({
     // Reset Form
     setTitle('');
     setDescription('');
+    setDurationMin('');
+    setDurationMax('');
     setSkillsStr('React, Node.js');
     setReqsStr('');
     setError('');
@@ -146,10 +148,10 @@ export default function RHOffersList({
               <div className="mt-auto pt-4 border-t border-[#2E2A4D] flex justify-between items-center text-xs">
                 <div className="flex items-center gap-1.5 text-on-surface-variant font-semibold">
                   <Users className="w-3.5 h-3.5 text-primary" />
-                  <span>{item.applicantsCount} candidatures</span>
+                  <span>{item.applicantsCount} candidature{item.applicantsCount !== 1 ? 's' : ''}</span>
                 </div>
                 <span className="text-on-surface-variant/60 font-semibold">
-                  {isOpen ? `Il y a ${item.publishedAt.replace('Il y a ', '')}` : item.publishedAt}
+                  {timeAgo(item.publishedAt)}
                 </span>
               </div>
             </article>
@@ -231,15 +233,20 @@ export default function RHOffersList({
                   <label className="text-xs font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="offer-loc">
                     Localisation
                   </label>
-                  <input
+                  <select
                     id="offer-loc"
-                    type="text"
                     required
-                    placeholder="Ex: Tunis / Hybride"
                     className="h-10 px-3 bg-[#0D0B1A] border border-[#2E2A4D] rounded-lg text-sm text-on-surface focus:outline-none focus:border-[#4C3BCF] transition-colors"
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
-                  />
+                  >
+                    <option value="Tunis / Hybride">Tunis / Hybride</option>
+                    <option value="Tunis / On‑site">Tunis / On‑site</option>
+                    <option value="Tunis / Fully Remote">Tunis / Fully Remote</option>
+                    <option value="France / Hybride">France / Hybride</option>
+                    <option value="France / On‑site">France / On‑site</option>
+                    <option value="France / Fully Remote">France / Fully Remote</option>
+                  </select>
                 </div>
               </div>
 
@@ -248,15 +255,28 @@ export default function RHOffersList({
                 <label className="text-xs font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="offer-dur">
                   Durée
                 </label>
-                <input
-                  id="offer-dur"
-                  type="text"
-                  required
-                  placeholder="Ex: 3 mois, 6 mois..."
-                  className="h-10 px-3 bg-[#0D0B1A] border border-[#2E2A4D] rounded-lg text-sm text-on-surface focus:outline-none focus:border-[#4C3BCF] transition-colors"
-                  value={duration}
-                  onChange={(e) => setDuration(e.target.value)}
-                />
+                <div className="flex gap-2">
+                  <input
+                    id="offer-dur-min"
+                    type="number"
+                    min="0"
+                    required
+                    placeholder="min (mois)"
+                    className="h-10 w-1/2 px-3 bg-[#0D0B1A] border border-[#2E2A4D] rounded-lg text-sm text-on-surface focus:outline-none focus:border-[#4C3BCF] transition-colors"
+                    value={durationMin}
+                    onChange={(e) => setDurationMin(e.target.value)}
+                  />
+                  <input
+                    id="offer-dur-max"
+                    type="number"
+                    min="0"
+                    required
+                    placeholder="max (mois)"
+                    className="h-10 w-1/2 px-3 bg-[#0D0B1A] border border-[#2E2A4D] rounded-lg text-sm text-on-surface focus:outline-none focus:border-[#4C3BCF] transition-colors"
+                    value={durationMax}
+                    onChange={(e) => setDurationMax(e.target.value)}
+                  />
+                </div>
               </div>
 
               {/* Description */}

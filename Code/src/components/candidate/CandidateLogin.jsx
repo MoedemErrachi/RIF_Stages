@@ -7,12 +7,13 @@ import React, { useState } from 'react';
 import { Eye, EyeOff, Briefcase, Mail, Key, Shield } from 'lucide-react';
 
 export default function CandidateLogin({ onLoginSuccess, onSwitchToRH }) {
-  const [email, setEmail] = useState('nom@exemple.com');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email) {
       setError('Veuillez saisir votre adresse email.');
@@ -22,7 +23,15 @@ export default function CandidateLogin({ onLoginSuccess, onSwitchToRH }) {
       setError('Veuillez saisir votre mot de passe.');
       return;
     }
-    onLoginSuccess(email);
+    setError('');
+    setIsLoading(true);
+    try {
+      await onLoginSuccess(email, password);
+    } catch (err) {
+      setError(err.message || 'Identifiants incorrects. Veuillez réessayer.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -104,9 +113,10 @@ export default function CandidateLogin({ onLoginSuccess, onSwitchToRH }) {
           {/* Submit button */}
           <button
             type="submit"
-            className="w-full h-12 mt-2 rounded-lg bg-primary-container text-white font-semibold text-sm tracking-wide flex items-center justify-center hover:bg-[#5546d8] active:scale-[0.98] transition-all duration-200 shadow-lg shadow-primary-container/20 cursor-pointer"
+            disabled={isLoading}
+            className="w-full h-12 mt-2 rounded-lg bg-primary-container text-white font-semibold text-sm tracking-wide flex items-center justify-center hover:bg-[#5546d8] active:scale-[0.98] transition-all duration-200 shadow-lg shadow-primary-container/20 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            Se connecter
+            {isLoading ? 'Connexion...' : 'Se connecter'}
           </button>
         </form>
 
@@ -118,22 +128,22 @@ export default function CandidateLogin({ onLoginSuccess, onSwitchToRH }) {
         </div>
 
         {/* Secondary Links */}
-        <div className="flex flex-col items-center gap-3">
-          <button
-            onClick={() => onLoginSuccess('demo-candidate@example.com')}
-            className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors cursor-pointer"
-          >
-            Accéder directement (Compte Démo)
-          </button>
-
-          <button
-            onClick={onSwitchToRH}
-            className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-full border border-[#2E2A4D] bg-[#1A1730]/50 text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-all cursor-pointer hover:bg-white/5 active:scale-95"
-          >
-            <Shield className="w-3.5 h-3.5 text-accent-green" />
-            <span>Accès Recruteur / RH</span>
-          </button>
-        </div>
+          <div className="flex flex-col items-center gap-3">
+            <p className="text-xs text-on-surface-variant/60 text-center">
+              <span className="block mb-2 font-semibold">Comptes de démo candidats :</span>
+              <span className="font-mono text-primary">candidat.demo@example.com</span><br/>
+              <span className="font-mono text-primary">jean.dupont@example.com</span><br/>
+              <span className="font-mono text-primary">marie.leroy@example.com</span><br/>
+              <span className="block mt-2">Mot de passe : <span className="font-mono text-primary">candidat123</span></span>
+            </p>
+            <button
+              onClick={onSwitchToRH}
+              className="mt-2 flex items-center justify-center gap-1.5 px-4 py-2 rounded-full border border-[#2E2A4D] bg-[#1A1730]/50 text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-all cursor-pointer hover:bg-white/5 active:scale-95"
+            >
+              <Shield className="w-3.5 h-3.5 text-accent-green" />
+              <span>Accès Recruteur / RH</span>
+            </button>
+          </div>
       </main>
     </div>
   );

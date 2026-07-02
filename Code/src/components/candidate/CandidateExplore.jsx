@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { Search, ArrowRight, MapPin, Clock, Star } from 'lucide-react';
+import { timeAgo } from '../../utils/timeAgo.js';
 
 export default function CandidateExplore({ internships, onSelectOffer }) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -17,10 +18,11 @@ export default function CandidateExplore({ internships, onSelectOffer }) {
   const filteredInternships = availableInternships.filter((item) => {
     const query = searchQuery.toLowerCase();
     return (
-      item.title.toLowerCase().includes(query) ||
-      item.specialty.toLowerCase().includes(query) ||
-      item.skills.some((skill) => skill.toLowerCase().includes(query)) ||
-      item.description.toLowerCase().includes(query)
+      item.title?.toLowerCase().includes(query) ||
+      item.specialty?.toLowerCase().includes(query) ||
+      (item.skills || []).some((skill) => skill.toLowerCase().includes(query)) ||
+      item.description?.toLowerCase().includes(query) ||
+      item.location?.toLowerCase().includes(query)
     );
   });
 
@@ -89,7 +91,7 @@ export default function CandidateExplore({ internships, onSelectOffer }) {
 
               <div className="flex items-center justify-between pt-4 border-t border-[#2E2A4D]/50">
                 <span className="text-xs text-on-surface-variant/60 font-medium">
-                  Publiée {item.publishedAt}
+                  {timeAgo(item.publishedAt)}
                 </span>
 
                 <button
