@@ -1,0 +1,6 @@
+{
+  "name": "RIF Stages",
+  "description": "Plateforme complète de gestion, publication et candidature pour les offres de stage, comprenant un Espace Candidat et un Espace RH.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
